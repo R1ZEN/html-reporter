@@ -3,6 +3,7 @@
 const _ = require('lodash');
 const HermioneTestResultAdapter = require('lib/test-adapter/hermione-test-adapter');
 const {stubTool, stubConfig} = require('../../utils');
+const ImagesSaver = require('lib/images-saver');
 
 describe('hermione test adapter', () => {
     const sandbox = sinon.sandbox.create();
@@ -10,13 +11,13 @@ describe('hermione test adapter', () => {
     class ImageDiffError extends Error {}
     class NoRefImageError extends Error {}
 
-    const mkHermioneTestResultAdapter = (testResult, toolOpts = {}) => {
+    const mkHermioneTestResultAdapter = (testResult, toolOpts = {}, htmlReporter) => {
         const config = _.defaults(toolOpts.config, {
             browsers: {
                 bro: {}
             }
         });
-        const tool = stubTool(stubConfig(config), {}, {ImageDiffError, NoRefImageError});
+        const tool = stubTool(stubConfig(config), {}, {ImageDiffError, NoRefImageError}, htmlReporter);
 
         return new HermioneTestResultAdapter(testResult, tool);
     };
@@ -67,6 +68,18 @@ describe('hermione test adapter', () => {
         const hermioneTestAdapter = mkHermioneTestResultAdapter(testResult);
 
         assert.deepEqual(hermioneTestAdapter.assertViewResults, [1]);
+    });
+
+    describe('saveTestImages', () => {
+        it('should use external images saving api', () => {
+            const testResult = {assertViewResults: [1]};
+            const imagesSaver = sinon.createStubInstance(ImagesSaver);
+
+            const hermioneTestAdapter = mkHermioneTestResultAdapter(testResult, {}, {imagesSaver});
+            hermioneTestAdapter.saveTestImages();
+
+            assert.calledOnce(imagesSaver.setTestResult);
+        });
     });
 
     describe('hasDiff()', () => {
@@ -168,6 +181,16 @@ describe('hermione test adapter', () => {
 
     describe('getImagesInfo()', () => {
         const mkTestResult_ = (result) => _.defaults(result, {id: () => 'some-id'});
+
+        it('should use external images saving api', () => {
+            const testResult = {assertViewResults: [1]};
+            const imagesSaver = sinon.createStubInstance(ImagesSaver);
+
+            const hermioneTestAdapter = mkHermioneTestResultAdapter(testResult, {}, {imagesSaver});
+            hermioneTestAdapter.getImagesInfo();
+
+            assert.calledOnce(imagesSaver.setTestResult);
+        });
 
         it('should not reinit "imagesInfo"', () => {
             const testResult = mkTestResult_({imagesInfo: [1, 2]});

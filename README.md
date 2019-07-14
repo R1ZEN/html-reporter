@@ -173,3 +173,53 @@ tool.htmlReporter.addMetaInfoExtender('foo', (suite, extraItems) => {
 ```
 
 In this case a line `suite full name: some-platform` will be added to the meta info of each test.
+
+
+### imagesSaver
+
+You can redefine native api for images saving and use your own storage.
+
+Example:
+```js
+class ImagesSaver {
+    constructor(testResult, myStorage) {
+        super(testResult);
+        this._myStorage = myStorage;
+        // ...
+    }
+
+    saveDiffImg(assertResult, {workers, stateName}) {
+        // ...
+        this._myStorage.saveDiff();
+    }
+
+    saveRef(stateName) {
+        // ...
+        this._myStorage.saveRef();
+    }
+
+    saveCurrImg(stateName) {
+        // ...
+        this._myStorage.saveCurr();
+    }
+
+    getImagesFor(status, stateName) {
+        // returns object with images info:
+        // expectedImg: {
+        //     path: ...
+        //     size: ...
+        // },
+        // actualImg: {
+        //     path: ...
+        //     size: ...
+        // },
+        // diffImg: {
+        //     path: ...
+        //     size: ...
+        // }
+        return this._myStorage.getImagesFor();
+    }
+};
+
+tool.htmlReporter.imagesSaver = new ImagesSaver(myStorage)l
+```
