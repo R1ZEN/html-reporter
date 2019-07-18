@@ -175,51 +175,25 @@ tool.htmlReporter.addMetaInfoExtender('foo', (suite, extraItems) => {
 In this case a line `suite full name: some-platform` will be added to the meta info of each test.
 
 
-### imagesSaver
+### externalStorage
 
 You can redefine native api for images saving and use your own storage.
 
 Example:
 ```js
-class ImagesSaver {
-    constructor(testResult, myStorage) {
-        super(testResult);
-        this._myStorage = myStorage;
+const externalStorage = {
+    /**
+    * @property {String} localFilePath – image path on your filesystem
+    * @property {String} reportFilePath – report path where you need to save image from local path
+    * @property {String} reportPath - your html-report path
+    */
+    saveImg: (localFilePath, reportFilePath, reportPath) => {
         // ...
     }
 
-    saveDiffImg(assertResult, {workers, stateName}) {
-        // ...
-        this._myStorage.saveDiff();
-    }
+    // path to folder or url where your images will be stored
+    baseImagesUrl: 'https://my.storage.com'
+}
 
-    saveRef(stateName) {
-        // ...
-        this._myStorage.saveRef();
-    }
-
-    saveCurrImg(stateName) {
-        // ...
-        this._myStorage.saveCurr();
-    }
-
-    getImagesFor(status, stateName) {
-        // returns object with images info:
-        // expectedImg: {
-        //     path: ...
-        //     size: ...
-        // },
-        // actualImg: {
-        //     path: ...
-        //     size: ...
-        // },
-        // diffImg: {
-        //     path: ...
-        //     size: ...
-        // }
-        return this._myStorage.getImagesFor();
-    }
-};
-
-tool.htmlReporter.imagesSaver = new ImagesSaver(myStorage)l
+tool.htmlReporter.externalStorage = externalStorage;
 ```

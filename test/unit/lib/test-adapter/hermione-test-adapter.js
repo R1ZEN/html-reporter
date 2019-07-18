@@ -1,12 +1,14 @@
 'use strict';
 
 const _ = require('lodash');
-const HermioneTestResultAdapter = require('lib/test-adapter/hermione-test-adapter');
+const utils = require('lib/server-utils');
 const {stubTool, stubConfig} = require('../../utils');
-const ImagesSaver = require('lib/images-saver');
+const proxyquire = require('proxyquire');
+const fs = require('fs-extra');
 
 describe('hermione test adapter', () => {
     const sandbox = sinon.sandbox.create();
+    let tmp, HermioneTestResultAdapter;
 
     class ImageDiffError extends Error {}
     class NoRefImageError extends Error {}
@@ -21,6 +23,15 @@ describe('hermione test adapter', () => {
 
         return new HermioneTestResultAdapter(testResult, tool);
     };
+
+    beforeEach(() => {
+        tmp = {tmpdir: 'default/dir'};
+        HermioneTestResultAdapter = proxyquire('../../../../lib/test-adapter/hermione-test-adapter', {tmp});
+        sandbox.stub(utils, 'getCurrentPath').returns('');
+        sandbox.stub(utils, 'getDiffPath').returns('');
+        sandbox.stub(fs, 'readFile').resolves(Buffer.from(''));
+        sandbox.stub(fs, 'copy').resolves();
+    });
 
     afterEach(() => sandbox.restore());
 
@@ -71,14 +82,47 @@ describe('hermione test adapter', () => {
     });
 
     describe('saveTestImages', () => {
-        it('should use external images saving api', () => {
-            const testResult = {assertViewResults: [1]};
-            const imagesSaver = sinon.createStubInstance(ImagesSaver);
+        let err;
 
-            const hermioneTestAdapter = mkHermioneTestResultAdapter(testResult, {}, {imagesSaver});
-            hermioneTestAdapter.saveTestImages();
+        beforeEach(() => {
+            err = new ImageDiffError();
+            err.stateName = 'plain';
+            err.currImg = {path: 'curr/path'};
+            err.refImg = {path: 'ref/path'};
+        });
 
-            assert.calledOnce(imagesSaver.setTestResult);
+        it('should build diff to tmp dir', async () => {
+            tmp.tmpdir = 'tmp/dir';
+            const testResult = {
+                id: () => '',
+                assertViewResults: [err]
+            };
+            utils.getDiffPath.returns('diff/report/path');
+
+            const hermioneTestAdapter = mkHermioneTestResultAdapter(testResult, {}, {});
+            const workers = {saveDiffTo: sandbox.stub()};
+            await hermioneTestAdapter.saveTestImages('', workers);
+
+            assert.calledOnceWith(workers.saveDiffTo, err, sinon.match('tmp/dir/diff/report/path'));
+        });
+
+        it('should save diff in report from tmp dir using external storage', async () => {
+            tmp.tmpdir = 'tmp/dir';
+            const testResult = {
+                id: () => '',
+                assertViewResults: [err]
+            };
+            utils.getDiffPath.returns('diff/report/path');
+            const externalStorage = {saveImg: sandbox.stub()};
+            const hermioneTestAdapter = mkHermioneTestResultAdapter(testResult, {}, {externalStorage});
+            const workers = {saveDiffTo: sandbox.stub()};
+            await hermioneTestAdapter.saveTestImages('', workers);
+
+            assert.calledWith(
+                externalStorage.saveImg,
+                sinon.match('tmp/dir/diff/report/path'),
+                sinon.match('diff/report/path')
+            );
         });
     });
 
@@ -182,14 +226,23 @@ describe('hermione test adapter', () => {
     describe('getImagesInfo()', () => {
         const mkTestResult_ = (result) => _.defaults(result, {id: () => 'some-id'});
 
-        it('should use external images saving api', () => {
+        it('should use images base url from external images saving api', () => {
+            sandbox.stub(utils, 'getImagesFor');
             const testResult = {assertViewResults: [1]};
-            const imagesSaver = sinon.createStubInstance(ImagesSaver);
 
-            const hermioneTestAdapter = mkHermioneTestResultAdapter(testResult, {}, {imagesSaver});
+            const hermioneTestAdapter = mkHermioneTestResultAdapter(
+                testResult,
+                {},
+                {externalStorage: {baseImagesUrl: '/base/url'}}
+            );
             hermioneTestAdapter.getImagesInfo();
 
-            assert.calledOnce(imagesSaver.setTestResult);
+            assert.calledWith(
+                utils.getImagesFor,
+                'success',
+                sinon.match.instanceOf(HermioneTestResultAdapter),
+                sinon.match({baseImagesUrl: '/base/url'})
+            );
         });
 
         it('should not reinit "imagesInfo"', () => {
